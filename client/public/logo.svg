@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" fill="none">
+  <!-- Define the subtle off-white textured background -->
+  <rect width="800" height="400" fill="#fdfbf8"/>
+  
+  <!-- Add subtle background pattern for texture -->
+  <defs>
+    <pattern id="dotPattern" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="0.5" fill="#e0e0e0" opacity="0.3"/>
+    </pattern>
+    
+    <!-- Gradient for the brain circuit icon -->
+    <linearGradient id="brainGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#40E0D0"/> <!-- Light Turquoise -->
+      <stop offset="100%" stop-color="#3CB371"/> <!-- Teal/Green -->
+    </linearGradient>
+  </defs>
+  <rect width="800" height="400" fill="url(#dotPattern)"/>
+
+  <!-- Centering group for the entire logo -->
+  <g transform="translate(400, 200)">
+    
+    <!-- Brain Circuit Icon (simplified SVG path representation) -->
+    <g transform="translate(-100, -150)">
+      <path d="M 100 50 L 80 70 L 60 70 M 100 50 L 120 70 M 100 50 L 100 30 M 80 70 C 50 80, 50 120, 80 130 L 120 130 C 150 120, 150 80, 120 70 Z M 100 130 L 100 150 M 80 130 L 60 150 M 120 130 L 140 150" stroke="url(#brainGradient)" stroke-width="6" stroke-linecap="round" fill="none"/>
+      
+      <!-- Nodes (simple circles) -->
+      <circle cx="100" cy="50" r="4" fill="url(#brainGradient)"/>
+      <circle cx="80" cy="70" r="4" fill="url(#brainGradient)"/>
+      <circle cx="120" cy="70" r="4" fill="url(#brainGradient)"/>
+      <circle cx="100" cy="30" r="4" fill="url(#brainGradient)"/>
+      <circle cx="100" cy="150" r="4" fill="url(#brainGradient)"/>
+      
+      <!-- Simple sparkling stars -->
+      <path d="M 60 30 L 63 33 L 60 36 L 57 33 Z" fill="url(#brainGradient)" transform="scale(0.8)"/>
+      <path d="M 140 100 L 143 103 L 140 106 L 137 103 Z" fill="url(#brainGradient)" transform="scale(1.2)"/>
+    </g>
+    
+    <!-- Group for standard logo elements (documents and text) -->
+    <g transform="translate(-200, 20)">
+      
+      <!-- Folded Document Icon (dark teal line art) -->
+      <path d="M 10 20 H 40 V 30 C 40 30, 30 25, 20 30 S 10 25, 10 30 V 20 Z" fill="#003333" stroke="none"/>
+      <path d="M 10 35 H 40 M 10 42 H 40 M 10 49 H 30" stroke="#003333" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M 5 15 H 45 V 50 H 5 V 15 Z" stroke="#003333" stroke-width="2.5" fill="none"/>
+      <circle cx="10" cy="10" r="2" fill="#003333"/>
+      
+      <!-- Main Logo Text (dark teal) -->
+      <text x="70" y="45" font-family="Arial, sans-serif" font-weight="bold" font-size="52" fill="#003333">
+        INTELLIDOC
+      </text>
+      
+      <!-- Tagline Text (dark teal) -->
+      <text x="70" y="75" font-family="Arial, sans-serif" font-weight="normal" font-size="20" fill="#003333">
+        AI-POWERED KNOWLEDGE PLATFORM
+      </text>
+      
+    </g>
+  </g>
+</svg>
