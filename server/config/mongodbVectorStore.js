@@ -46,14 +46,54 @@ const initializeVectorStore = async () => {
       if (!exists) {
         await db.createCollection(collectionName);
         console.log(`Created collection: ${collectionName}`);
+      } else {
+        console.log(`Collection ${collectionName} already exists`);
       }
     } catch (colError) {
-      // Collection creation failed, continue anyway
+      console.log('Collection check error:', colError.message);
     }
 
     const collection = getVectorCollection();
     const indexes = await collection.indexes();
-    const vectorIndex = indexes.find(idx => idx.name === 'vector_index');
+    console.log(`=== DEBUG INFO ===`);
+    console.log(`Database:`, db.databaseName);
+    console.log(`Collection:`, collectionName);
+    console.log(`All indexes:`, JSON.stringify(indexes, null, 2));
+    console.log(`==================`);
+
+    // Check for vector index (could be named differently in Atlas)
+    let vectorIndex = indexes.find(idx => idx.name === 'vector_index');
+
+    // Also check for any index with "vector" in the name
+    if (!vectorIndex) {
+      vectorIndex = indexes.find(idx =>
+        idx.name?.toLowerCase().includes('vector') ||
+        idx.key?.embedding === 'vector'
+      );
+    }
+
+    // Try running a test $vectorSearch to see if Atlas index exists
+    // Note: collection.indexes() doesn't show Atlas Search indexes, so we test directly
+    try {
+      const testEmbedding = new Array(768).fill(0.1);
+      await collection.aggregate([
+        {
+          $vectorSearch: {
+            index: 'vector_index',
+            path: 'embedding',
+            queryVector: testEmbedding,
+            numCandidates: 10,
+            limit: 1
+          }
+        }
+      ]).toArray();
+      console.log('✓ Atlas Vector Search is WORKING!');
+      isAtlasVectorSearch = true;
+      vectorIndex = {}; // Mark as found
+    } catch (e) {
+      console.log('✗ Atlas Vector Search error:', e.message);
+      isAtlasVectorSearch = false;
+    }
 
     if (!vectorIndex) {
       // Try to create vector index (only works on Atlas)
