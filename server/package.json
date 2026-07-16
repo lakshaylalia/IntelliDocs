@@ -3,12 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon index.js",
-    "install": "npm install --force",
-    "build": "npm install --force"
-  },
-  "overrides": {
-    "better-sqlite3": "11.8.1"
+    "dev": "nodemon index.js"
   },
   "keywords": [],
   "author": "",
