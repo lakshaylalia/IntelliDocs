@@ -33,7 +33,7 @@ const DocumentLibrary = ({ documents, onDelete, onPreview, onSearch, searchQuery
   // Handle tag edit
   const startEditTags = (doc, e) => {
     e.stopPropagation();
-    setEditingTags(doc.id);
+    setEditingTags(doc._id);
     setTagInput(doc.tags?.join(', ') || '');
   };
 
@@ -72,7 +72,7 @@ const DocumentLibrary = ({ documents, onDelete, onPreview, onSearch, searchQuery
   // Open share modal
   const openShareModal = (doc, e) => {
     e.stopPropagation();
-    setShowShareModal(doc.id);
+    setShowShareModal(doc._id);
     setSharedWith(doc.sharedWith || []);
     setSearchUsers('');
     setUserResults([]);
@@ -125,7 +125,7 @@ const DocumentLibrary = ({ documents, onDelete, onPreview, onSearch, searchQuery
 
   // Get status badge
   const getStatusBadge = (doc) => {
-    const status = docStatuses[doc.id]?.status || doc.status || 'completed';
+    const status = docStatuses[doc._id]?.status || doc.status || 'completed';
 
     const badges = {
       pending: { bg: 'bg-yellow-100 dark:bg-yellow-900', text: 'text-yellow-800 dark:text-yellow-200', label: '⏳ Pending' },
@@ -150,12 +150,12 @@ const DocumentLibrary = ({ documents, onDelete, onPreview, onSearch, searchQuery
     const pollStatus = async () => {
       for (const doc of pendingDocs) {
         try {
-          const res = await fetch(`${BASE_URL}/document/${doc.id}/status`, {
+          const res = await fetch(`${BASE_URL}/document/${doc._id}/status`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (res.ok) {
             const data = await res.json();
-            setDocStatuses(prev => ({ ...prev, [doc.id]: data }));
+            setDocStatuses(prev => ({ ...prev, [doc._id]: data }));
           }
         } catch (err) {
           console.error('Error fetching status:', err);
@@ -319,7 +319,7 @@ const DocumentLibrary = ({ documents, onDelete, onPreview, onSearch, searchQuery
             <tbody>
               {documents.map((doc, index) => (
                 <tr
-                  key={doc.id}
+                  key={doc._id}
                   className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
                     index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
                   }`}
@@ -336,18 +336,18 @@ const DocumentLibrary = ({ documents, onDelete, onPreview, onSearch, searchQuery
                     {getCategoryBadge(doc.category)}
                   </td>
                   <td className="py-3 px-4">
-                    {editingTags === doc.id ? (
+                    {editingTags === doc._id ? (
                       <div className="flex gap-1 items-center">
                         <input
                           type="text"
                           value={tagInput}
                           onChange={(e) => setTagInput(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && saveTags(doc.id)}
+                          onKeyDown={(e) => e.key === 'Enter' && saveTags(doc._id)}
                           placeholder="tag1, tag2"
                           className="w-24 px-2 py-1 text-xs border rounded"
                           onClick={(e) => e.stopPropagation()}
                         />
-                        <button onClick={() => saveTags(doc.id)} className="text-green-600 text-xs">Save</button>
+                        <button onClick={() => saveTags(doc._id)} className="text-green-600 text-xs">Save</button>
                         <button onClick={() => setEditingTags(null)} className="text-gray-500 text-xs">Cancel</button>
                       </div>
                     ) : (
@@ -395,7 +395,7 @@ const DocumentLibrary = ({ documents, onDelete, onPreview, onSearch, searchQuery
                       </button>
                       <button
                         className="text-red-600 hover:text-red-800 hover:bg-red-50 px-3 py-1 rounded transition-colors text-sm"
-                        onClick={() => onDelete(doc.id)}
+                        onClick={() => onDelete(doc._id)}
                       >
                         Delete
                       </button>
