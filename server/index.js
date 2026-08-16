@@ -11,6 +11,7 @@ const connectDB = require('./config/database');
 const { initializeVectorStore } = require('./config/mongodbVectorStore');
 
 const app = express();
+app.set('trust proxy', 1);
 
 // Rate limiting configuration
 const generalLimiter = rateLimit({
