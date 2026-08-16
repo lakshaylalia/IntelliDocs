@@ -32,10 +32,11 @@ const uploadDocument = async (req, res) => {
 
     await document.save();
 
-    // Add to processing queue (async)
+    // Add to processing queue (async) - use relative path for server portability
+    const relativePath = path.relative(process.cwd(), req.file.path);
     const queueResult = await addToQueue(
       document._id.toString(),
-      req.file.path,
+      relativePath,
       req.file.originalname,
       userId
     );

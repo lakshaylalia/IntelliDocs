@@ -2,14 +2,16 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+// Use server-relative path for uploads directory (works on both local and Render)
+const UPLOAD_DIR = path.join(__dirname, '../uploads');
+
 // Configure storage
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadDir = 'uploads/';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+    if (!fs.existsSync(UPLOAD_DIR)) {
+      fs.mkdirSync(UPLOAD_DIR, { recursive: true });
     }
-    cb(null, uploadDir);
+    cb(null, UPLOAD_DIR);
   },
   // unique file name
   filename: function (req, file, cb) {

@@ -1,6 +1,6 @@
 
 const { ChatSession } = require('../models/chat.model.js');
-const { llm } = require('../config/langchain');
+const { chat } = require('../config/langchain');
 const { querySimilarChunks } = require('../config/mongodbVectorStore');
 
 // Constants for memory management
@@ -29,17 +29,12 @@ const manageChatMemory = async (session) => {
           .join('\n');
 
         // Ask LLM to summarize
-        const summaryResponse = await llm.invoke([
-          {
-            role: 'user',
-            content: `Summarize this conversation concisely, keeping key points and important information:\n\n${conversationText}`
-          }
-        ]);
+        const summaryResponse = await chat(`Summarize this conversation concisely, keeping key points and important information:\n\n${conversationText}`);
 
         // Replace old messages with summary
         const summaryMessage = {
           role: 'assistant',
-          content: `[Previous conversation summary]\n${summaryResponse.content}`,
+          content: `[Previous conversation summary]\n${summaryResponse}`,
           isSummary: true
         };
 
@@ -92,14 +87,9 @@ const sendMessage = async (req, res) => {
     // Auto-generate title if this is the first message and title is default
     if (session.messages.length === 0 && session.title === 'New Chat') {
       try {
-        const titleResponse = await llm.invoke([
-          {
-            role: 'user',
-            content: `Generate a short, descriptive title (max 50 characters) for this chat based on the user's first message: "${message}". Just return the title, nothing else.`
-          }
-        ]);
+        const titleResponse = await chat(`Generate a short, descriptive title (max 50 characters) for this chat based on the user's first message: "${message}". Just return the title, nothing else.`);
         // Clean up the title - remove quotes if any
-        let generatedTitle = titleResponse.content.trim();
+        let generatedTitle = titleResponse.trim();
         if (generatedTitle.startsWith('"') && generatedTitle.endsWith('"')) {
           generatedTitle = generatedTitle.slice(1, -1);
         }
@@ -114,10 +104,16 @@ const sendMessage = async (req, res) => {
     // Find relevant documents from user's vector store (user-isolated)
     const relevantDocs = await querySimilarChunks(message, req.user._id.toString());
 
+    console.log("Query:", message);
+    console.log("Relevant docs found:", relevantDocs.length);
+    console.log("Doc scores:", relevantDocs.map(d => d.score));
+
     // Create context from relevant documents
     const context = relevantDocs
       .map(doc => doc.pageContent)
       .join('\n\n');
+
+    console.log("Context length:", context.length);
 
       // console.log("context is :", context)
     // Prepare conversation history (exclude summaries to save tokens)
@@ -129,19 +125,9 @@ const sendMessage = async (req, res) => {
       }));
 
 
-    const response = await llm.invoke([
-        {
-          role: 'system',
-          content: `You are a helpful AI assistant. Use the following context to answer the user's question: ${context}`
-        },
-        ...conversationHistory,
-        {
-          role: 'user',
-          content: message
-        }
-      ]);
+    const response = await chat(`You are a helpful AI assistant. Use the following context to answer the user's question: ${context}\n\nConversation:\n${conversationHistory.map(m => `${m.role}: ${m.content}`).join('\n')}\n\nUser: ${message}`);
 
-    console.log("Response :", response.content)
+    console.log("Response :", response)
     // Save messages to session
     session.messages.push(
       {
@@ -150,7 +136,7 @@ const sendMessage = async (req, res) => {
       },
       {
         role: 'assistant',
-        content: response.content,
+        content: response.text || response,
         sourceDocs: relevantDocs.map(doc => ({
           documentId: doc.metadata.documentId,
           relevanceScore: doc.score
@@ -164,7 +150,7 @@ const sendMessage = async (req, res) => {
     await manageChatMemory(session);
 
     res.json({
-      message: response.content,
+      message: response.text || response,
       sources: relevantDocs.map(doc => ({
         documentId: doc.metadata.documentId,
         filename: doc.metadata.filename,
@@ -202,14 +188,9 @@ const streamMessage = async (req, res) => {
     // Auto-generate title if this is the first message and title is default
     if (session.messages.length === 0 && session.title === 'New Chat') {
       try {
-        const titleResponse = await llm.invoke([
-          {
-            role: 'user',
-            content: `Generate a short, descriptive title (max 50 characters) for this chat based on the user's first message: "${message}". Just return the title, nothing else.`
-          }
-        ]);
+        const titleResponse = await chat(`Generate a short, descriptive title (max 50 characters) for this chat based on the user's first message: "${message}". Just return the title, nothing else.`);
         // Clean up the title - remove quotes if any
-        let generatedTitle = titleResponse.content.trim();
+        let generatedTitle = titleResponse.trim();
         if (generatedTitle.startsWith('"') && generatedTitle.endsWith('"')) {
           generatedTitle = generatedTitle.slice(1, -1);
         }
@@ -242,28 +223,14 @@ const streamMessage = async (req, res) => {
         content: msg.content
       }));
 
-    // Stream the response
-    const fullResponse = [];
+    // Stream the response (simulated with Cohere)
+    const responseContent = await chat(`You are a helpful AI assistant. Use the following context to answer the user's question: ${context}\n\nConversation:\n${conversationHistory.map(m => `${m.role}: ${m.content}`).join('\n')}\n\nUser: ${message}`);
 
-    const stream = await llm.stream([
-      {
-        role: 'system',
-        content: `You are a helpful AI assistant. Use the following context to answer the user's question: ${context}`
-      },
-      ...conversationHistory,
-      {
-        role: 'user',
-        content: message
-      }
-    ]);
-
-    for await (const chunk of stream) {
-      const content = chunk.content;
-      fullResponse.push(content);
-      sendSSE(res, 'message', { content });
+    // Send in chunks for SSE effect
+    const words = responseContent.split(' ');
+    for (const word of words) {
+      sendSSE(res, 'message', { content: word + ' ' });
     }
-
-    const responseContent = fullResponse.join('');
 
     // Send sources
     sendSSE(res, 'sources', {

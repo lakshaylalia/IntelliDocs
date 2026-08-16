@@ -68,7 +68,20 @@ if (redisUrl) {
 const processDocument = async (job) => {
   const { documentId, filePath, originalname, userId } = job.data;
 
+  // Resolve relative path to absolute path (for server portability)
+  const resolvedPath = path.isAbsolute(filePath)
+    ? filePath
+    : path.resolve(process.cwd(), filePath);
+
   console.log(`Processing document: ${originalname} (${documentId})`);
+  console.log(`File path: ${resolvedPath}`);
+
+  // Check if file exists
+  try {
+    await fs.access(resolvedPath);
+  } catch (error) {
+    throw new Error(`File not found: ${resolvedPath}. Make sure the upload and processing happen on the same server.`);
+  }
 
   try {
     let fileContent;
@@ -77,25 +90,25 @@ const processDocument = async (job) => {
     // Parse file based on extension
     switch (fileExtension) {
       case '.pdf':
-        const pdfLoader = new PDFLoader(filePath);
+        const pdfLoader = new PDFLoader(resolvedPath);
         const pdfDocs = await pdfLoader.load();
         fileContent = pdfDocs.map(doc => doc.pageContent).join('\n\n');
         break;
 
       case '.docx':
-        const docLoader = new DocxLoader(filePath);
+        const docLoader = new DocxLoader(resolvedPath);
         const docDocs = await docLoader.load();
         fileContent = docDocs.map(doc => doc.pageContent).join('\n\n');
         break;
 
       case '.csv':
         if (CSVLoader) {
-          const csvLoader = new CSVLoader(filePath);
+          const csvLoader = new CSVLoader(resolvedPath);
           const csvDocs = await csvLoader.load();
           fileContent = csvDocs.map(doc => doc.pageContent).join('\n\n');
         } else {
           // Fallback: read as text
-          fileContent = await fs.readFile(filePath, 'utf8');
+          fileContent = await fs.readFile(resolvedPath, 'utf8');
         }
         break;
 
@@ -103,7 +116,7 @@ const processDocument = async (job) => {
       case '.md':
       case '.json':
         // Plain text files
-        fileContent = await fs.readFile(filePath, 'utf8');
+        fileContent = await fs.readFile(resolvedPath, 'utf8');
         break;
 
       case '.xlsx':
@@ -111,7 +124,7 @@ const processDocument = async (job) => {
         // Excel files - extract sheet names and data
         try {
           const XLSX = require('xlsx');
-          const workbook = XLSX.readFile(filePath);
+          const workbook = XLSX.readFile(resolvedPath);
           const sheets = workbook.SheetNames;
           let excelContent = '';
           for (const sheetName of sheets) {
@@ -132,7 +145,7 @@ const processDocument = async (job) => {
         // PowerPoint files - basic text extraction
         try {
           const { readFile } = require('pptxtojson');
-          const pptxJson = await readFile(filePath);
+          const pptxJson = await readFile(resolvedPath);
           fileContent = pptxJson.map(slide =>
             slide.text || ''
           ).join('\n\n');
@@ -140,7 +153,7 @@ const processDocument = async (job) => {
           // Fallback: try reading as zip and extracting slides
           try {
             const AdmZip = require('adm-zip');
-            const zip = new AdmZip(filePath);
+            const zip = new AdmZip(resolvedPath);
             const slideEntries = zip.getEntries().filter(e => e.entryName.match(/slide\d+\.xml/));
             let pptContent = '';
             for (const entry of slideEntries) {
@@ -172,7 +185,7 @@ const processDocument = async (job) => {
       default:
         // Try to read as plain text
         try {
-          fileContent = await fs.readFile(filePath, 'utf8');
+          fileContent = await fs.readFile(resolvedPath, 'utf8');
         } catch (readError) {
           fileContent = `File: ${originalname}\nNote: This file format is not fully supported. Try converting to PDF or text format.`;
         }
@@ -204,7 +217,7 @@ const processDocument = async (job) => {
     await addDocumentChunks(documentChunks, userId);
 
     // Clean up uploaded file
-    await fs.unlink(filePath).catch(() => {});
+    await fs.unlink(resolvedPath).catch(() => {});
 
     // Update document status to completed
     document.status = 'completed';
@@ -230,7 +243,7 @@ const processDocument = async (job) => {
     }
 
     // Clean up file
-    await fs.unlink(filePath).catch(() => {});
+    await fs.unlink(resolvedPath).catch(() => {});
 
     throw error;
   }

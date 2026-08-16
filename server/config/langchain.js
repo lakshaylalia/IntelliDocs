@@ -1,15 +1,23 @@
-const { ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings } = require("@langchain/google-genai");
+const { CohereClient } = require("cohere-ai");
 const { RecursiveCharacterTextSplitter } = require("@langchain/textsplitters");
 const { Document } = require("@langchain/core/documents");
 
 require('dotenv').config();
 
-// Gemini LLM for the response generation
-const llm = new ChatGoogleGenerativeAI({
-  model: "gemini-3-flash-preview",
-  temperature: 0,
-  apiKey: process.env.GOOGLE_API_KEY
+// Initialize Cohere client
+const cohereClient = new CohereClient({
+  token: process.env.COHERE_API_KEY
 });
+
+// Chat function using Cohere Command model (free)
+const chat = async (prompt) => {
+  const response = await cohereClient.chat({
+    message: prompt,
+    model: 'command-r7b-12-2024',
+    temperature: 0
+  });
+  return response.text;
+};
 
 // text spliiter from langchain
 const textSplitter = new RecursiveCharacterTextSplitter({
@@ -17,12 +25,14 @@ const textSplitter = new RecursiveCharacterTextSplitter({
     chunkOverlap: 200,
   });
 
-// Google embedding models
-const embeddingsModel = new GoogleGenerativeAIEmbeddings({
-  model: "gemini-embedding-001",
-  apiKey: process.env.GOOGLE_API_KEY,
-});
-
+const generateCohereEmbeddings = async (texts) => {
+  const response = await cohereClient.embed({
+    texts: texts,
+    model: 'embed-english-light-v3.0',
+    inputType: 'search_document'
+  });
+  return response.embeddings;
+};
 
 
 // Function to create document chunks
@@ -33,29 +43,30 @@ const createDocumentChunks = async (text) => {
 
   // Function to generate embeddings for document chunks
 const generateEmbeddings = async (documents) => {
-    const embeddings = [];
-    for (const doc of documents) {
-      const embedding = await embeddingsModel.embedQuery(doc.pageContent);
-      embeddings.push(embedding);
-    }
-    return embeddings;
+    const texts = documents.map(doc => doc.pageContent);
+    return await generateCohereEmbeddings(texts);
   };
 
   const findSimilarDocuments = async (query, documents, topK = 3) => {
-    const queryEmbedding = await embeddingsModel.embedQuery(query);
-  
+    const response = await cohereClient.embed({
+      texts: [query],
+      model: 'embed-english-light-v3.0',
+      inputType: 'search_query'
+    });
+    const queryEmbedding = response.embeddings[0];
+
     // Calculate cosine similarity between query and documents
     const similarities = documents.map((doc, index) => ({
       document: doc,
       score: cosineSimilarity(queryEmbedding, doc.embedding)
     }));
-  
+
     // Sort by similarity score and return top K results
     return similarities
       .sort((a, b) => b.score - a.score)
       .slice(0, topK);
   };
-  
+
   // Utility function to calculate cosine similarity
   const cosineSimilarity = (vecA, vecB) => {
     const dotProduct = vecA.reduce((acc, val, i) => acc + val * vecB[i], 0);
@@ -64,10 +75,9 @@ const generateEmbeddings = async (documents) => {
     return dotProduct / (normA * normB);
   };
 
-  module.exports = {
-    llm,
+module.exports = {
+    chat,
     textSplitter,
-    embeddingsModel,
     generateEmbeddings,
     findSimilarDocuments,
     createDocumentChunks

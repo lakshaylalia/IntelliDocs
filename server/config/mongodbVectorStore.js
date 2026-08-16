@@ -1,13 +1,24 @@
 const mongoose = require('mongoose');
-const { GoogleGenerativeAIEmbeddings } = require('@langchain/google-genai');
+const { CohereClient } = require('cohere-ai');
 const { Document: LangchainDocument } = require('@langchain/core/documents');
 require('dotenv').config();
 
-// Initialize embeddings model
-const embeddingsModel = new GoogleGenerativeAIEmbeddings({
-  model: 'gemini-embedding-001',
-  apiKey: process.env.GOOGLE_API_KEY,
+// Initialize Cohere client
+const cohereClient = new CohereClient({
+  token: process.env.COHERE_API_KEY
 });
+
+// Generate embeddings using Cohere directly
+const generateCohereEmbeddings = async (text, inputType = 'search_query') => {
+  console.log("🔑 Generating embedding for:", text.substring(0, 50), "inputType:", inputType);
+  const response = await cohereClient.embed({
+    texts: [text],
+    model: 'embed-english-light-v3.0',
+    inputType: inputType
+  });
+  console.log("📊 Embedding generated, dimensions:", response.embeddings[0]?.length);
+  return response.embeddings[0];
+};
 
 // Collection name for vector store
 const VECTOR_COLLECTION = 'vector_store';
@@ -17,7 +28,15 @@ let isAtlasVectorSearch = false;
 
 // Get the vector store collection
 const getVectorCollection = () => {
-  return mongoose.connection.db.collection(VECTOR_COLLECTION);
+  if (!mongoose.connection.db) {
+    console.error("❌ MongoDB connection not ready");
+    throw new Error("MongoDB not connected yet");
+  }
+  const col = mongoose.connection.db.collection(VECTOR_COLLECTION);
+  if (!col) {
+    throw new Error(`Collection ${VECTOR_COLLECTION} not found`);
+  }
+  return col;
 };
 
 // Utility: Calculate cosine similarity
@@ -75,7 +94,7 @@ const initializeVectorStore = async () => {
     // Try running a test $vectorSearch to see if Atlas index exists
     // Note: collection.indexes() doesn't show Atlas Search indexes, so we test directly
     try {
-      const testEmbedding = new Array(768).fill(0.1);
+      const testEmbedding = new Array(384).fill(0.1); // embed-english-light-v3.0 produces 384 dims
       await collection.aggregate([
         {
           $vectorSearch: {
@@ -105,7 +124,7 @@ const initializeVectorStore = async () => {
             key: { embedding: 'vector' },
             vectorOptions: {
               type: 'knn',
-              dimensions: 768,
+              dimensions: 384, // Must match embed-english-light-v3.0 output
               m: 2,
               efConstruction: 100,
               efSearch: 100
@@ -139,7 +158,7 @@ const addDocumentChunks = async (chunks, userId) => {
 
     // First, generate embeddings for all chunks
     const documents = await Promise.all(chunks.map(async (chunk) => {
-      const embedding = await embeddingsModel.embedQuery(chunk.content);
+      const embedding = await generateCohereEmbeddings(chunk.content, 'search_document');
       return {
         content: chunk.content,
         embedding: embedding,
@@ -155,7 +174,9 @@ const addDocumentChunks = async (chunks, userId) => {
     // Insert all documents with their embeddings
     if (documents.length > 0) {
       await collection.insertMany(documents);
-      console.log(`Added ${documents.length} chunks to vector store for user ${userId}`);
+      console.log(`✅ Added ${documents.length} chunks to vector store for user ${userId}`);
+    } else {
+      console.log("⚠️ No documents to insert");
     }
 
     return true;
@@ -168,26 +189,42 @@ const addDocumentChunks = async (chunks, userId) => {
 // Query similar chunks from MongoDB vector store (user-isolated)
 const querySimilarChunks = async (query, userId, topK = 5) => {
   try {
-    // Generate embedding for the query
-    const queryEmbedding = await embeddingsModel.embedQuery(query);
+    console.log("🔍 Searching vector store for user:", userId);
+    console.log("Connection state:", mongoose.connection.readyState);
 
-    const collection = getVectorCollection();
+    let collection;
+    try {
+      collection = getVectorCollection();
+      console.log("✅ Collection obtained:", collection.collectionName);
+    } catch (collectionErr) {
+      console.error("❌ Failed to get collection:", collectionErr.message);
+      throw collectionErr;
+    }
+
+    // Check if there are any documents for this user
+    const docCount = await collection.countDocuments({ 'metadata.userId': userId });
+    console.log("📚 Total chunks in vector store for user:", docCount);
+
+    // Generate embedding for the query
+    const queryEmbedding = await generateCohereEmbeddings(query);
 
     let results;
 
     if (isAtlasVectorSearch) {
-      // Use $vectorSearch for MongoDB Atlas
+      // Use $vectorSearch for MongoDB Atlas (filter after search for better performance)
       results = await collection.aggregate([
         {
           $vectorSearch: {
             index: 'vector_index',
             path: 'embedding',
             queryVector: queryEmbedding,
-            numCandidates: topK * 2,
-            limit: topK * 2,
-            filter: {
-              'metadata.userId': userId
-            }
+            numCandidates: topK * 10,
+            limit: topK * 10
+          }
+        },
+        {
+          $match: {
+            'metadata.userId': userId
           }
         },
         {
@@ -217,6 +254,7 @@ const querySimilarChunks = async (query, userId, topK = 5) => {
       results = scoredDocs.slice(0, topK);
     }
 
+    console.log(`📄 Found ${results.length} similar chunks`);
     return results.map(doc => ({
       pageContent: doc.content,
       score: doc.score,
@@ -248,7 +286,7 @@ const deleteDocumentChunks = async (documentId, userId) => {
 };
 
 module.exports = {
-  embeddingsModel,
+  generateCohereEmbeddings,
   getVectorCollection,
   initializeVectorStore,
   addDocumentChunks,

@@ -8,7 +8,7 @@ const DocumentPreview = ({ document, onClose }) => {
   const token = localStorage.getItem('token');
 
   useEffect(() => {
-    if (document?.id) {
+    if (document?._id) {
       fetchDocumentContent();
     }
   }, [document]);
@@ -17,7 +17,7 @@ const DocumentPreview = ({ document, onClose }) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch(endpoints.getDocument(document.id), {}, token);
+      const res = await apiFetch(endpoints.getDocument(document._id), {}, token);
       setContent(res.content || res.text || 'No content available');
     } catch (err) {
       setError(err.error || 'Failed to load document');

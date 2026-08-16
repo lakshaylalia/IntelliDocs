@@ -1,5 +1,5 @@
 const express = require('express');
-const cors = require('cors'); // Import cors
+const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const authRouter = require('./routes/auth.route.js');
 require('dotenv').config();
@@ -11,11 +11,12 @@ const connectDB = require('./config/database');
 const { initializeVectorStore } = require('./config/mongodbVectorStore');
 
 const app = express();
+app.set('trust proxy', 1);
 
 // Rate limiting configuration
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 500, // Limit each IP to 500 requests per windowMs
   message: { error: 'Too many requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -24,7 +25,7 @@ const generalLimiter = rateLimit({
 // More strict rate limiting for chat/AI endpoints
 const chatLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 10, // Limit each IP to 10 chat requests per minute
+  max: 50, // Limit each IP to 50 chat requests per minute
   message: { error: 'Too many chat requests, please slow down.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -33,7 +34,7 @@ const chatLimiter = rateLimit({
 // Strict rate limiting for document uploads
 const uploadLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 5, // Limit each IP to 5 uploads per minute
+  max: 20, // Limit each IP to 20 uploads per minute
   message: { error: 'Too many uploads, please slow down.' },
   standardHeaders: true,
   legacyHeaders: false,
